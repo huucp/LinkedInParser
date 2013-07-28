@@ -6,13 +6,16 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.Net;
+using NBug;
 using NLog;
 using MyConnect;
 using MyConnect.SQLServer;
 using MyUtility;
 using Microsoft.Vbe.Interop;
+using Application = System.Windows.Forms.Application;
 
 namespace LinkedInParser
 {
@@ -24,35 +27,96 @@ namespace LinkedInParser
         public Parser()
         {
 
-
-
-            //string content = File.ReadAllText("luu vinh.html");
+            InitializeComponent();
+            //string content = File.ReadAllText("trung kien thai.html");
             //var parserCore = new ParserCore(content);
             //parserCore.Process();
-            MainProcess("http://vn.linkedin.com/pub/trung-kien-thai/66/b1/946", 10);
+            //MainProcess("http://vn.linkedin.com/pub/trung-kien-thai/66/b1/946", 10);
+            //MainProcess("http://vn.linkedin.com/in/ducdangindochinecounsel?trk=pub-pbmap", 10);
+
+#if DEBUG
+            NBug.Settings.Destination1 = "Type=Mail;From=huupc@tosy.com;To=phamchinhhuu@gmail.com;SmtpServer=mail.tosy.com;";
+            AppDomain.CurrentDomain.UnhandledException += NBug.Handler.UnhandledException;
+            Application.ThreadException += Handler.ThreadException;
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += NBug.Handler.UnobservedTaskException; 
+#endif
         }
         const string scn = "SQLConnectionName";
         MyGetData mGet = new MyGetData(scn);
         MyExecuteData mExe = new MyExecuteData(scn);
-        private void MainProcess(string first, int limit)
+        private string link;
+        private int count = 0;
+        private int limit;
+        private void MainProcess(string first, int l)
         {
+            limit = l;
 
-            int count = 0;
-            string link = first;
+            link = first;
+
+
+            var backgroundWorker = new BackgroundWorker();
+            backgroundWorker.DoWork += ParseData;
+            backgroundWorker.RunWorkerAsync();
+
+
+
+        }
+
+        private void UpdateLog(string log)
+        {
+            if (InvokeRequired)
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    LogTextBox.AppendText(log);
+                });
+            }
+            else
+            {
+                LogTextBox.AppendText(log);
+            }
+        }
+
+        private void ParseData(object sender, DoWorkEventArgs e)
+        {
             while (count < limit)
             {
-                string content = GetWebContent(link);
-                var parserCore = new ParserCore(content);
-                var profile = parserCore.Process();
-                
-
-                if (!IsExisted(link))
-                {
-                    WriteToDB(profile,link);
-                }
-                link = profile.NextProfile;
+                ParseDataProcess();
                 count++;
             }
+
+            BeginInvoke((MethodInvoker)delegate
+            {
+                MessageBox.Show("Parse done");
+                LimitTextBox.Text = string.Empty;
+                LinkTextBox.Text = string.Empty;
+            });
+
+        }
+
+        private void ParseDataProcess()
+        {
+            if (link == string.Empty)
+            {
+                UpdateLog("Cannot get next profile. The link is empty.");
+                return;
+            }
+            UpdateLog("Parse link: " + link + ".\n");
+            string content = GetWebContent(link);
+            var parserCore = new ParserCore(content);
+            var profile = parserCore.Process();
+
+
+            if (!IsExisted(link))
+            {
+                WriteToDB(profile, link);
+                UpdateLog("This profile is not exist in DB. Write to DB done!\n");
+            }
+            else
+            {
+                UpdateLog("This profile is exist in DB.\n");
+            }
+            link = profile.NextProfile;
         }
 
         private bool IsExisted(string link)
@@ -64,7 +128,7 @@ namespace LinkedInParser
             return true;
         }
 
-        private void WriteToDB(LinkedInProfile profile,string link)
+        private void WriteToDB(LinkedInProfile profile, string link)
         {
             string username = profile.Username.Replace("'", "\"");
             string position = profile.Position.Replace("'", "\"");
@@ -75,13 +139,13 @@ namespace LinkedInParser
             {
                 language += ";" + l.Replace("'", "\"");
             }
-            string skill = string.Empty;
-            foreach (var s in profile.SkillAndExpertise)
+            string skill = profile.SkillAndExpertise[0];
+            for (int i = 1; i < profile.SkillAndExpertise.Count; i++)
             {
-                skill = ";" + s.Replace("'", "\"");
+                skill += ";" + profile.SkillAndExpertise[i].Replace("'", "\"");
             }
             link = link.Replace("'", "\"");
-            mExe.ExecQuery("INSERT INTO UserDB (Username,Position,Description,Experience,Language,Skill,Link) " +"VALUES" +" (" +
+            mExe.ExecQuery("INSERT INTO UserDB (Username,Position,Description,Experience,Language,Skill,Link) " + "VALUES" + " (" +
                            "'" + username + "'," +
                            "'" + position + "'," +
                            "'" + summary + "'," +
@@ -94,22 +158,44 @@ namespace LinkedInParser
 
         private string GetWebContent(string url)
         {
-            WebRequest request = WebRequest.Create(url);
-            request.Method = "GET";
-            WebResponse response = request.GetResponse();
-            Stream stream = response.GetResponseStream();
-            if (stream != null)
+            string content = string.Empty;
+            using (var client = new WebClient())
             {
-                var reader = new StreamReader(stream);
-                string content = reader.ReadToEnd();
-                reader.Close();
-                response.Close();
-                return content;
+                content = client.DownloadString(url);
+                //File.WriteAllText("test.html", content);
             }
-            else
+            return content;
+            //WebRequest request = WebRequest.Create(url);
+            //request.Method = "GET";
+            //WebResponse response = request.GetResponse();
+            //Stream stream = response.GetResponseStream();
+            //if (stream != null)
+            //{
+            //    var reader = new StreamReader(stream);
+            //    string content = reader.ReadToEnd();
+            //    reader.Close();
+            //    response.Close();
+            //    File.WriteAllText("test.html",content);
+            //    return content;
+            //}
+            //else
+            //{
+            //    return string.Empty;
+            //}
+        }
+
+        private void ParseButton_Click(object sender, EventArgs e)
+        {
+            count = 0;
+            link = string.Empty;
+            string url = LinkTextBox.Text;
+            int Limit = 1;
+            if (!Int32.TryParse(LimitTextBox.Text, out Limit))
             {
-                return string.Empty;
+                MessageBox.Show("The limit must be a number");
+                return;
             }
+            MainProcess(url, Limit);
         }
     }
 }

@@ -46,7 +46,14 @@ namespace LinkedInParser
             // Get summary
             logger.Info("Get summary");
             string[] summarySplitWord = Regex.Split(Content, "<p class=\" description summary\">");
-            profile.Summary = ExtractSummary(summarySplitWord[1]);
+            if (summarySplitWord.Count() > 1)
+            {
+                profile.Summary = ExtractSummary(summarySplitWord[1]);
+            }
+            else
+            {
+                profile.Summary = string.Empty;
+            }
 
             // Get experience
             logger.Info("Get experience");
@@ -69,15 +76,35 @@ namespace LinkedInParser
             string[] skillSplitWord = Regex.Split(Content, "<li class=\"competency show-bean  \">");
             for (int i = 1; i < skillSplitWord.Count(); i++)
             {
-                string skill = ExtractSkillAndExpertise(skillSplitWord[i]);
+                var content = Regex.Split(skillSplitWord[i], "</span>")[0];
+                string skill = ExtractSkillAndExpertise(content);
                 profile.SkillAndExpertise.Add(skill);
                 logger.Info(skill);
             }
+            if (Content.Contains("<li class=\"competency show-bean  extra-skill\">"))
+            {
+                string[] extraSkillSplitWord = Regex.Split(Content, "<li class=\"competency show-bean  extra-skill\">");
+                for (int i = 1; i < extraSkillSplitWord.Count(); i++)
+                {
+                    var content = Regex.Split(extraSkillSplitWord[i], "</span>")[0];
+                    string skill = ExtractSkillAndExpertise(content);
+                    profile.SkillAndExpertise.Add(skill);
+                    logger.Info(skill);
+                }
+            }
+
 
             // Get next profile link
             logger.Info("Get next profile");
             string[] nextSplitWord = Regex.Split(Content, "<li class=\"with-photo\">");
-            profile.NextProfile = ExtractNextProfile(nextSplitWord[1]);
+            if (nextSplitWord.Count() > 1)
+            {
+                profile.NextProfile = ExtractNextProfile(nextSplitWord[1]);
+            }
+            else
+            {
+                profile.NextProfile = string.Empty;
+            }
             logger.Info(profile.NextProfile);
 
             logger.Info("End parse HTML");
@@ -86,15 +113,26 @@ namespace LinkedInParser
 
         private string ExtractNextProfile(string content)
         {
-            string[] s1= Regex.Split(content,"<a href=\"");
+            string[] s1 = Regex.Split(content, "<a href=\"");
             string url = Regex.Split(s1[1], "\">")[0].Trim();
             return url;
         }
 
         private string ExtractSkillAndExpertise(string content)
         {
-            string[] s1 = Regex.Split(content, "</a>");
-            string skill = Regex.Split(s1[0], ">")[2];
+            string skill = string.Empty;
+            string[] s1;
+            if (content.Contains("a href"))
+            {
+                s1 = Regex.Split(content, "</a>");
+                skill = Regex.Split(s1[0], ">")[2];
+            }
+            else
+            {
+                s1 = Regex.Split(content, ">");
+                skill = Regex.Split(s1[1], "<")[0];
+            }
+
             return WebUtility.HtmlDecode(skill).Trim();
         }
 
