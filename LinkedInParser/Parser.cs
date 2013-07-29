@@ -38,7 +38,7 @@ namespace LinkedInParser
             NBug.Settings.Destination1 = "Type=Mail;From=huupc@tosy.com;To=phamchinhhuu@gmail.com;SmtpServer=mail.tosy.com;";
             AppDomain.CurrentDomain.UnhandledException += NBug.Handler.UnhandledException;
             Application.ThreadException += Handler.ThreadException;
-            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += NBug.Handler.UnobservedTaskException; 
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += NBug.Handler.UnobservedTaskException;
 #endif
         }
         const string scn = "SQLConnectionName";
@@ -81,7 +81,7 @@ namespace LinkedInParser
         {
             while (count < limit)
             {
-                ParseDataProcess();
+                if (!ParseDataProcess()) break;
                 count++;
             }
 
@@ -90,21 +90,23 @@ namespace LinkedInParser
                 MessageBox.Show("Parse done");
                 LimitTextBox.Text = string.Empty;
                 LinkTextBox.Text = string.Empty;
+                ParseButton.Enabled = true;
             });
 
         }
 
-        private void ParseDataProcess()
+        private bool ParseDataProcess()
         {
             if (link == string.Empty)
             {
                 UpdateLog("Cannot get next profile. The link is empty.");
-                return;
+                return false;
             }
             UpdateLog("Parse link: " + link + ".\n");
             string content = GetWebContent(link);
             var parserCore = new ParserCore(content);
             var profile = parserCore.Process();
+
 
 
             if (!IsExisted(link))
@@ -116,7 +118,22 @@ namespace LinkedInParser
             {
                 UpdateLog("This profile is exist in DB.\n");
             }
-            link = profile.NextProfile;
+            int linkCount = 0;
+            foreach (var profileLink in profile.NextProfile)
+            {
+                linkCount++;
+                if (!IsExisted(profileLink))
+                {
+                    link = profileLink;
+                    return true;
+                }
+                if (linkCount == profile.NextProfile.Count())
+                {
+                    return false;
+                }
+            }
+            link = string.Empty;
+            return true;
         }
 
         private bool IsExisted(string link)
@@ -134,12 +151,12 @@ namespace LinkedInParser
             string position = profile.Position.Replace("'", "\"");
             string summary = profile.Summary.Replace("'", "\"");
             string exp = profile.Experience.Replace("'", "\"");
-            string language = string.Empty;
-            foreach (var l in profile.Language)
+            string language = profile.Language.Count > 0 ? profile.Language[0] : string.Empty;
+            for (int i = 1; i < profile.Language.Count; i++)
             {
-                language += ";" + l.Replace("'", "\"");
+                language += ";" + profile.Language[i].Replace("'", "\"");
             }
-            string skill = profile.SkillAndExpertise[0];
+            string skill = profile.SkillAndExpertise.Count > 0 ? profile.SkillAndExpertise[0] : string.Empty;
             for (int i = 1; i < profile.SkillAndExpertise.Count; i++)
             {
                 skill += ";" + profile.SkillAndExpertise[i].Replace("'", "\"");
@@ -186,6 +203,7 @@ namespace LinkedInParser
 
         private void ParseButton_Click(object sender, EventArgs e)
         {
+            ParseButton.Enabled = false;
             count = 0;
             link = string.Empty;
             string url = LinkTextBox.Text;
