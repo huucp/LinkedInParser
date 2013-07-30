@@ -62,8 +62,13 @@ namespace LinkedInParser
             // Get experience
             logger.Info("Get experience");
             string[] expSplitWord = Regex.Split(Content, "<div class=\"postitle\">");
-            profile.Experience = expSplitWord.Count() > 1 ? ExtractExperience(expSplitWord[1]) : string.Empty;
-            logger.Info(profile.Experience);
+            profile.ExperienceCompany = string.Empty;
+            profile.ExperienceCompanyLocation = string.Empty;
+            profile.ExperienceCompanyDetail = string.Empty;
+            profile.ExperiencePeriod = string.Empty;
+            profile.ExperiencePosition = string.Empty;
+            if(expSplitWord.Count() > 1) ExtractExperience(expSplitWord[1],ref profile);
+            //logger.Info(profile.Experience);
 
             // Get language
             logger.Info("Get language");
@@ -176,23 +181,30 @@ namespace LinkedInParser
             return WebUtility.HtmlDecode(s).Trim();
         }
 
-        private string ExtractExperience(string content)
+        private void ExtractExperience(string content,ref LinkedInProfile profile)
         {
             string[] titleSplitWord = Regex.Split(content, "<span class=\"title\">");
             string title = Regex.Split(titleSplitWord[1], "</span>")[0].Trim();
+            profile.ExperiencePosition = WebUtility.HtmlDecode(title);
+            logger.Info(title);
 
             string org = string.Empty;
             if (content.Contains("<span class=\"org summary\">"))
             {
                 string[] orgSplitWord = Regex.Split(content, "<span class=\"org summary\">");
-                org = Regex.Split(orgSplitWord[1], "</span>")[0].Trim(); 
+                org = Regex.Split(orgSplitWord[1], "</span>")[0].Trim();
+                profile.ExperienceCompany = WebUtility.HtmlDecode(org);
+                logger.Info(org);
             }
 
-            string[] orgDetailSplitWord = Regex.Split(content, "<p class=\"orgstats organization-details current-position\">");
+            string[] orgDetailSplitWord = Regex.Split(content, "<p class=\"orgstats organization-details");
             string orgDetail = string.Empty;
             if (orgDetailSplitWord.Count() > 1)
             {
-                orgDetail = Regex.Split(orgDetailSplitWord[1], "</p>")[0].Trim();
+                string[] orgDetailTemp = Regex.Split(orgDetailSplitWord[1], "position\">");
+                orgDetail = Regex.Split(orgDetailTemp[1], "</p>")[0].Trim();
+                profile.ExperienceCompanyDetail = WebUtility.HtmlDecode(orgDetail);
+                logger.Info(orgDetail);
             }
 
             string[] periodSplitWord = new string[] {};
@@ -208,13 +220,21 @@ namespace LinkedInParser
             string[] timeSplitWord = Regex.Split(periodSplitWord[1], "</abbr>");
             if (timeSplitWord.Count()==1)
             {
-                return WebUtility.HtmlDecode(title + "|" + org + "|" + orgDetail);
+                return;
             }
             string firstTime = Regex.Split(timeSplitWord[0], ">")[1].Trim();
             string secondTime = Regex.Split(timeSplitWord[1], ">")[1].Trim();
             string duration = Regex.Split(periodSplitWord[1], "</span>")[1].Trim();
+            profile.ExperiencePeriod = WebUtility.HtmlDecode(string.Format(firstTime + " - " + secondTime + " " + duration));
+            logger.Info(profile.ExperiencePeriod);
 
-            return WebUtility.HtmlDecode(title + "|" + org + "|" + orgDetail + "|" + firstTime + "-" + secondTime + ":" + duration);
+            if (content.Contains("<span class=\"location\">"))
+            {
+                string[] locationSplitWord = Regex.Split(content, "<span class=\"location\">");
+                profile.ExperienceCompanyLocation =
+                    WebUtility.HtmlDecode(Regex.Split(locationSplitWord[1], "</span>")[0]);
+                logger.Info(profile.ExperienceCompanyLocation);
+            }
         }
     }
 
@@ -224,7 +244,11 @@ namespace LinkedInParser
         public string Position { get; set; }
         public string Company { get; set; }
         public string Summary { get; set; }
-        public string Experience { get; set; }
+        public string ExperienceCompany { get; set; }
+        public string ExperiencePosition { get; set; }
+        public string ExperienceCompanyDetail { get; set; }
+        public string ExperiencePeriod { get; set; }
+        public string ExperienceCompanyLocation { get; set; }
         public List<string> Language = new List<string>();
         public List<string> SkillAndExpertise = new List<string>();
         public List<string> NextProfile = new List<string>();

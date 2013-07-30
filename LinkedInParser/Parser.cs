@@ -45,13 +45,14 @@ namespace LinkedInParser
         MyGetData mGet = new MyGetData(scn);
         MyExecuteData mExe = new MyExecuteData(scn);
         private string link;
+        private List<string> ListLink = new List<string>();
         private int count = 0;
         private int limit;
         private void MainProcess(string first, int l)
         {
             limit = l;
 
-            link = first;
+            ListLink.Add(first);
 
 
             var backgroundWorker = new BackgroundWorker();
@@ -79,15 +80,21 @@ namespace LinkedInParser
 
         private void ParseData(object sender, DoWorkEventArgs e)
         {
-            while (count < limit)
+            while (ListLink.Any() && (count < limit))
             {
-                if (!ParseDataProcess()) break;
+                link = ListLink[0];
+                ListLink.RemoveAt(0);
+                ParseDataProcess();
                 count++;
             }
 
             BeginInvoke((MethodInvoker)delegate
             {
-                MessageBox.Show("Parse done");
+                if (!ListLink.Any())
+                {
+                    MessageBox.Show("Stop at " + count + " records");
+                }
+                else MessageBox.Show("Parse done");
                 LimitTextBox.Text = string.Empty;
                 LinkTextBox.Text = string.Empty;
                 ParseButton.Enabled = true;
@@ -95,23 +102,27 @@ namespace LinkedInParser
 
         }
 
-        private bool ParseDataProcess()
+        private void ParseDataProcess()
         {
             if (link == string.Empty)
             {
                 UpdateLog("Cannot get next profile. The link is empty.");
-                return false;
+                return;
             }
             UpdateLog("Parse link: " + link + ".\n");
             string content = GetWebContent(link);
+            if (string.Empty == content)
+            {
+                return;
+            }
             var parserCore = new ParserCore(content);
             var profile = parserCore.Process();
 
 
 
-            if (!IsExisted(link))
+            if (!IsExistedInDatabase(link))
             {
-                WriteToDB(profile, link);
+                WriteToDatabase(profile, link);
                 UpdateLog("This profile is not exist in DB. Write to DB done!\n");
             }
             else
@@ -122,21 +133,19 @@ namespace LinkedInParser
             foreach (var profileLink in profile.NextProfile)
             {
                 linkCount++;
-                if (!IsExisted(profileLink))
+                if (!IsExistedInDatabase(profileLink) && !ListLink.Contains(profileLink))
                 {
-                    link = profileLink;
-                    return true;
+                    //link = profileLink;
+                    //return true;
+                    ListLink.Add(profileLink);
                 }
-                if (linkCount == profile.NextProfile.Count())
-                {
-                    return false;
-                }
+
             }
-            link = string.Empty;
-            return true;
+            //link = string.Empty;
+            //return true;
         }
 
-        private bool IsExisted(string link)
+        private bool IsExistedInDatabase(string link)
         {
             link = link.Replace("'", "\"");
             string temp = "select * from UserDB where Link='" + link + "'";
@@ -145,12 +154,17 @@ namespace LinkedInParser
             return true;
         }
 
-        private void WriteToDB(LinkedInProfile profile, string link)
+        private void WriteToDatabase(LinkedInProfile profile, string link)
         {
             string username = profile.Username.Replace("'", "\"");
             string position = profile.Position.Replace("'", "\"");
+            string company = profile.Company.Replace("'", "\"");
             string summary = profile.Summary.Replace("'", "\"");
-            string exp = profile.Experience.Replace("'", "\"");
+            string expCompany = profile.ExperienceCompany.Replace("'", "\"");
+            string expPosition = profile.ExperiencePosition.Replace("'", "\"");
+            string expCompanyDetail = profile.ExperienceCompanyDetail.Replace("'", "\"");
+            string expCompanyLocation = profile.ExperienceCompanyLocation.Replace("'", "\"");
+            string expPeriod = profile.ExperiencePeriod.Replace("'", "\"");
             string language = profile.Language.Count > 0 ? profile.Language[0] : string.Empty;
             for (int i = 1; i < profile.Language.Count; i++)
             {
@@ -162,14 +176,20 @@ namespace LinkedInParser
                 skill += ";" + profile.SkillAndExpertise[i].Replace("'", "\"");
             }
             link = link.Replace("'", "\"");
-            mExe.ExecQuery("INSERT INTO UserDB (Username,Position,Description,Experience,Language,Skill,Link) " + "VALUES" + " (" +
-                           "'" + username + "'," +
-                           "'" + position + "'," +
-                           "'" + summary + "'," +
-                           "'" + exp + "'," +
-                           "'" + language + "'," +
-                           "'" + skill + "'," +
-                           "'" + link + "'" +
+            mExe.ExecQuery("INSERT INTO UserDB (Username,Position,Company,Description,ExperienceCompany,ExperiencePosition," +
+                           "ExperienceCompanyDetail,ExperienceCompanyLocation,ExperiencePeriod,Language,Skill,Link) " + "VALUES" + " (" +
+                           "N'" + username + "'," +
+                           "N'" + position + "'," +
+                           "N'" + company + "'," +
+                           "N'" + summary + "'," +
+                           "N'" + expCompany + "'," +
+                           "N'" + expPosition + "'," +
+                           "N'" + expCompanyDetail + "'," +
+                           "N'" + expCompanyLocation + "'," +
+                           "N'" + expPeriod + "'," +
+                           "N'" + language + "'," +
+                           "N'" + skill + "'," +
+                           "N'" + link + "'" +
                            ")");
         }
 
@@ -178,7 +198,14 @@ namespace LinkedInParser
             string content = string.Empty;
             using (var client = new WebClient())
             {
-                content = client.DownloadString(url);
+                try
+                {
+                    content = client.DownloadString(url);
+                }
+                catch (Exception)
+                {
+                    content = string.Empty;
+                }
                 //File.WriteAllText("test.html", content);
             }
             return content;
@@ -203,7 +230,7 @@ namespace LinkedInParser
 
         private void ParseButton_Click(object sender, EventArgs e)
         {
-            ParseButton.Enabled = false;
+
             count = 0;
             link = string.Empty;
             string url = LinkTextBox.Text;
@@ -213,6 +240,7 @@ namespace LinkedInParser
                 MessageBox.Show("The limit must be a number");
                 return;
             }
+            ParseButton.Enabled = false;
             MainProcess(url, Limit);
         }
     }
