@@ -64,10 +64,12 @@ namespace LinkedInParser
             string[] expSplitWord = Regex.Split(Content, "<div class=\"postitle\">");
             profile.ExperienceCompany = string.Empty;
             profile.ExperienceCompanyLocation = string.Empty;
-            profile.ExperienceCompanyDetail = string.Empty;
+            profile.ExperienceCompanyType = string.Empty;
+            profile.ExperienceCompanySize = string.Empty;
+            profile.ExperienceCompanyBusinessSector = string.Empty;
             profile.ExperiencePeriod = string.Empty;
             profile.ExperiencePosition = string.Empty;
-            if(expSplitWord.Count() > 1) ExtractExperience(expSplitWord[1],ref profile);
+            if (expSplitWord.Count() > 1) ExtractExperience(expSplitWord[1], ref profile);
             //logger.Info(profile.Experience);
 
             // Get language
@@ -162,15 +164,26 @@ namespace LinkedInParser
         private string ExtractUsername(string content)
         {
             string[] words = Regex.Split(content, "</span> <span class=\"family-name\">");
-            string[] givenName = Regex.Split(words[0], "<span class=\"given-name\">");
-            string[] familyName = Regex.Split(words[1], "</span></span>");
-            return WebUtility.HtmlDecode(string.Format("{0} {1}", givenName[1], familyName[0])).Trim();
+            string givenName, familyName;
+            if (words.Count() > 1)
+            {
+                givenName = Regex.Split(words[0], "<span class=\"given-name\">")[1];
+                familyName = Regex.Split(words[1], "</span></span>")[0];
+                return WebUtility.HtmlDecode(string.Format("{0} {1}", givenName, familyName)).Trim();
+            }
+            else
+            {
+                words = Regex.Split(content, "</span><span class=\"given-name\">");
+                familyName = Regex.Split(words[0], "<span class=\"family-name\">")[1];
+                givenName = Regex.Split(words[1], "</span></span>")[0];
+                return WebUtility.HtmlDecode(string.Format("{0} {1}", familyName, givenName)).Trim();
+            }
         }
         private string ExtractPosition(string content)
         {
             string temp = WebUtility.HtmlDecode(Regex.Split(content, "</p>")[0]);
             string[] parts = temp.Split(new string[] { "\n" }, StringSplitOptions.None);
-            int index = (parts.Count() - 1)/2;
+            int index = (parts.Count() - 1) / 2;
             return parts[index].Trim();
         }
 
@@ -181,7 +194,7 @@ namespace LinkedInParser
             return WebUtility.HtmlDecode(s).Trim();
         }
 
-        private void ExtractExperience(string content,ref LinkedInProfile profile)
+        private void ExtractExperience(string content, ref LinkedInProfile profile)
         {
             string[] titleSplitWord = Regex.Split(content, "<span class=\"title\">");
             string title = Regex.Split(titleSplitWord[1], "</span>")[0].Trim();
@@ -203,22 +216,39 @@ namespace LinkedInParser
             {
                 string[] orgDetailTemp = Regex.Split(orgDetailSplitWord[1], "position\">");
                 orgDetail = Regex.Split(orgDetailTemp[1], "</p>")[0].Trim();
-                profile.ExperienceCompanyDetail = WebUtility.HtmlDecode(orgDetail);
+                //profile.ExperienceCompanyDetail = WebUtility.HtmlDecode(orgDetail);
+                string[] orgDetailSplit = Regex.Split(orgDetail, ";");
+                switch (orgDetailSplit.Count())
+                {
+                    case 1:
+                        profile.ExperienceCompanyBusinessSector = WebUtility.HtmlDecode(orgDetailSplit[0]).Trim();
+                        break;
+                    case 4:
+                        profile.ExperienceCompanyType = WebUtility.HtmlDecode(orgDetailSplit[0]).Trim();
+                        profile.ExperienceCompanySize = WebUtility.HtmlDecode(orgDetailSplit[1]).Trim();
+                        profile.ExperienceCompanyBusinessSector = WebUtility.HtmlDecode(orgDetailSplit[3]).Trim();
+                        break;
+                    case 3:
+                        profile.ExperienceCompanyType = WebUtility.HtmlDecode(orgDetailSplit[0]).Trim();
+                        profile.ExperienceCompanySize = WebUtility.HtmlDecode(orgDetailSplit[1]).Trim();
+                        profile.ExperienceCompanyBusinessSector = WebUtility.HtmlDecode(orgDetailSplit[2]).Trim();
+                        break;
+                }
                 logger.Info(orgDetail);
             }
 
-            string[] periodSplitWord = new string[] {};
+            string[] periodSplitWord = new string[] { };
             if (content.Contains("<p class=\"period\">"))
             {
-                periodSplitWord=Regex.Split(content, "<p class=\"period\">");
+                periodSplitWord = Regex.Split(content, "<p class=\"period\">");
             }
             if (content.Contains("<div class=\"period\">"))
             {
                 periodSplitWord = Regex.Split(content, "<div class=\"period\">");
             }
-            
+
             string[] timeSplitWord = Regex.Split(periodSplitWord[1], "</abbr>");
-            if (timeSplitWord.Count()==1)
+            if (timeSplitWord.Count() == 1)
             {
                 return;
             }
@@ -246,7 +276,9 @@ namespace LinkedInParser
         public string Summary { get; set; }
         public string ExperienceCompany { get; set; }
         public string ExperiencePosition { get; set; }
-        public string ExperienceCompanyDetail { get; set; }
+        public string ExperienceCompanyType { get; set; }
+        public string ExperienceCompanySize { get; set; }
+        public string ExperienceCompanyBusinessSector { get; set; }
         public string ExperiencePeriod { get; set; }
         public string ExperienceCompanyLocation { get; set; }
         public List<string> Language = new List<string>();

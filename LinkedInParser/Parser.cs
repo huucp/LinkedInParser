@@ -148,7 +148,6 @@ namespace LinkedInParser
         private bool IsExistedInDatabase(string link)
         {
             link = link.Replace("'", "\"");
-            string temp = "select * from UserDB where Link='" + link + "'";
             var tbl = mGet.GetDataTable_Query("select * from UserDB where Link='" + link + "'");
             if (tbl.Rows.Count == 0) return false;
             return true;
@@ -162,7 +161,10 @@ namespace LinkedInParser
             string summary = profile.Summary.Replace("'", "\"");
             string expCompany = profile.ExperienceCompany.Replace("'", "\"");
             string expPosition = profile.ExperiencePosition.Replace("'", "\"");
-            string expCompanyDetail = profile.ExperienceCompanyDetail.Replace("'", "\"");
+            string expCompanyType = profile.ExperienceCompanyType.Replace("'", "\"");
+            string expCompanySize = profile.ExperienceCompanySize.Replace("'", "\"");
+            string expCompanyBusinessSector = profile.ExperienceCompanyBusinessSector.Replace("'", "\"");
+
             string expCompanyLocation = profile.ExperienceCompanyLocation.Replace("'", "\"");
             string expPeriod = profile.ExperiencePeriod.Replace("'", "\"");
             string language = profile.Language.Count > 0 ? profile.Language[0] : string.Empty;
@@ -177,14 +179,17 @@ namespace LinkedInParser
             }
             link = link.Replace("'", "\"");
             mExe.ExecQuery("INSERT INTO UserDB (Username,Position,Company,Description,ExperienceCompany,ExperiencePosition," +
-                           "ExperienceCompanyDetail,ExperienceCompanyLocation,ExperiencePeriod,Language,Skill,Link) " + "VALUES" + " (" +
+                           "ExperienceCompanyType,ExperienceCompanySize,ExperienceCompanyBusinessSector,ExperienceCompanyLocation," +
+                           "ExperiencePeriod,Language,Skill,Link) " + "VALUES" + " (" +
                            "N'" + username + "'," +
                            "N'" + position + "'," +
                            "N'" + company + "'," +
                            "N'" + summary + "'," +
                            "N'" + expCompany + "'," +
                            "N'" + expPosition + "'," +
-                           "N'" + expCompanyDetail + "'," +
+                           "N'" + expCompanyType + "'," +
+                           "N'" + expCompanySize + "'," +
+                           "N'" + expCompanyBusinessSector + "'," +
                            "N'" + expCompanyLocation + "'," +
                            "N'" + expPeriod + "'," +
                            "N'" + language + "'," +
@@ -230,7 +235,6 @@ namespace LinkedInParser
 
         private void ParseButton_Click(object sender, EventArgs e)
         {
-
             count = 0;
             link = string.Empty;
             string url = LinkTextBox.Text;
@@ -243,5 +247,7 @@ namespace LinkedInParser
             ParseButton.Enabled = false;
             MainProcess(url, Limit);
         }
+
+        
     }
 }
